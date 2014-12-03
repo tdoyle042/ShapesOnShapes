@@ -1,61 +1,241 @@
-/*
-*********************************************
-	Shapy.js
-	Main logic for the game Shapes On Shapes.
-	Tommy Doyle
-*********************************************
+/* 
+    Basic Game Initalization 
 */
 
-shapy = {} //Global store for the app
+var shapy = {};
 
 window.onload = initGame;
 
-/*
-	initGame
-	Handles the set up of the game and basic variables
-*/
 function initGame() {
-	var canvas = document.getElementsByClassName('gameCanvas')[0];
-	var context = canvas.getContext('2d');
-	canvas.style.webkitFontSmoothing="antialiased"; 
-	shapy.canvas = canvas;
-	shapy.canvas.width = 1024;
-	shapy.canvas.height = 680;
-	shapy.ctx = context;
-	shapy.width = canvas.clientWidth;
-	shapy.height = canvas.clientHeight;
-	shapy.state = "startScreen";
+    var canvas, context;
+    canvas = canvas = document.getElementsByClassName('gameCanvas')[0];
+    context = canvas.getContext('2d');
+    canvas.style.webkitFontSmoothing = 'antialiased';
+    shapy.canvas = canvas;
+    shapy.canvas.width = 1024;
+    shapy.canvas.height = 680;
+    shapy.ctx = context;
+    shapy.width = canvas.clientWidth;
+    shapy.height = canvas.clientHeight;
+    shapy.state = 'startScreen';
+    shapy.levels = [];
+    shapy.level = 0;
 
-	setInterval(handleTimerFired, 1000/60);
+    var lvl1 = new Level();
+    var b1 = new Floor(0,580,1024,100);
+    var p = new Character(20,20,25,25);
+
+    lvl1.addElement(b1);
+    lvl1.character = p;
+    p.addToWorld(lvl1.world);
+    shapy.levels[1] = lvl1;
+
+    shapy.level = 1;
+    
+    document.addEventListener('keydown', function(event) {
+        lvl1.handleKeyPress(event);
+    });
+    setInterval(handleTimerFired, 1000 / 60);
+}
+
+function handleTimerFired() {
+    var currentLevel = shapy.levels[shapy.level];
+    currentLevel.update();
+    currentLevel.draw(shapy.ctx);
 }
 
 /*
-	Main Game Loop :o
-	Handles updating objects in the scene as well as
-	drawing all the graphics to the canvas.
+    Start Screen
 */
-function handleTimerFired() {
-	update();
-	drawAll();
-}
 
-function update() {
-	if(shapy.state == "startScreen") {
-
-	} else {
-
-	}
-}
-
-function drawAll() {
-	if(shapy.state == "startScreen") return drawStartScreen();
+function handleStartScreen() {
+    drawStartScreen();
 }
 
 function drawStartScreen() {
-	shapy.ctx.fillStyle = "#c8edff"; //Sky Color
-	shapy.ctx.fillRect(0,0,shapy.width,shapy.height);
+    shapy.ctx.fillStyle = '#c8edff';
+    shapy.ctx.fillRect(0, 0, shapy.width, shapy.height);
+    shapy.ctx.font = '30px Helvetica, sans-serif';
+    shapy.ctx.fillStyle = 'black';
+    shapy.ctx.fillText('Shapes on Shapes', shapy.width / 2 - 125, shapy.height / 2);
+}
 
-	shapy.ctx.font = "30px Helvetica, sans-serif";
-	shapy.ctx.fillStyle = "black";
-	shapy.ctx.fillText("Shapes on Shapes",shapy.width/2 - 125,shapy.height/2);
+/*
+    Level Class
+*/
+
+var Level = function() {
+    this.character = null
+    this.elements = [];
+    this.gravity = new Box2D.Common.Math.b2Vec2(0,100);
+    this.world = new Box2D.Dynamics.b2World(this.gravity, false);
+};
+
+Level.prototype.draw = function(ctx) {
+    ctx.clearRect(0,0,shapy.width,shapy.height);
+    for(var elem of this.elements) {
+        elem.draw(ctx);
+    }
+    this.character.draw(ctx);
+};
+
+Level.prototype.update = function() {
+    this.world.Step(1/60, 10, 10);
+    for(var elem of this.elements) {
+        elem.update();
+    }
+    this.character.update();
+    this.world.ClearForces();
+}
+
+Level.prototype.addElement = function(elem) {
+    elem.addToWorld(this.world);
+    this.elements.push(elem);
+}
+
+Level.prototype.handleKeyPress = function(event) {
+    console.log(event.keyCode);
+    switch(event.keyCode) {
+        // Left Arrow
+        case 37:
+            this.character.moveLeft();
+            break;
+        // Right Arrow
+        case 39:
+            this.character.moveRight();
+            break;
+        case 38:
+            this.character.jump();
+            break;
+    }
+}
+
+/* 
+    Floor Class
+*/
+
+var Floor = function(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+
+    this.shape = new Box2D.Collision.Shapes.b2PolygonShape.AsBox(width, height);
+    this.fixtureDef = new Box2D.Dynamics.b2FixtureDef();
+    this.fixtureDef.shape = this.shape;
+    this.fixtureDef.friction = 0.1;
+    this.fixtureDef.density = 1;
+    this.fixtureDef.restitution = 0;
+
+    this.bodyDef = new Box2D.Dynamics.b2BodyDef();
+    this.bodyDef.type = Box2D.Dynamics.b2Body.b2_staticBody;
+}
+
+Floor.prototype.draw = function(ctx) {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(this.x, this.y-this.height, this.width, this.height);
+}
+
+Floor.prototype.update = function() {
+    var pos = this.body.GetPosition();
+    this.x = pos.x;
+    this.y = pos.y;
+}
+
+Floor.prototype.addToWorld = function(world) {
+    this.body = world.CreateBody(this.bodyDef);
+    this.fixture = this.body.CreateFixture(this.fixtureDef);
+    this.body.SetPosition(new Box2D.Common.Math.b2Vec2(this.x,this.y));
+}
+
+var Block = function(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.mass = 10;
+
+    this.shape = new Box2D.Collision.Shapes.b2PolygonShape.AsBox(width, height);
+    this.fixtureDef = new Box2D.Dynamics.b2FixtureDef();
+    this.fixtureDef.shape = this.shape;
+    this.fixtureDef.friction = 0.1;
+    this.fixtureDef.density = 1;
+    this.fixtureDef.restitution = 0;
+
+    this.bodyDef = new Box2D.Dynamics.b2BodyDef();
+    this.bodyDef.type = Box2D.Dynamics.b2Body.b2_dynamicBody;
+}
+
+Block.prototype.draw = function(ctx) {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(this.x, this.y-this.height, this.width, this.height);
+}
+
+Block.prototype.update = function() {
+    var pos = this.body.GetPosition();
+    this.x = pos.x;
+    this.y = pos.y;
+}
+
+/*
+    Character Class
+*/
+
+var Character = function(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.mass = 10;
+
+    this.shape = new Box2D.Collision.Shapes.b2PolygonShape.AsBox(width, height);
+    this.fixtureDef = new Box2D.Dynamics.b2FixtureDef();
+    this.fixtureDef.shape = this.shape;
+    this.fixtureDef.friction = 0.1;
+    this.fixtureDef.density = 1;
+    this.fixtureDef.restitution = 0;
+
+    this.bodyDef = new Box2D.Dynamics.b2BodyDef();
+    this.bodyDef.type = Box2D.Dynamics.b2Body.b2_dynamicBody;
+}
+
+Character.prototype.draw = function(ctx) {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+}
+
+Character.prototype.update = function() {
+    var pos = this.body.GetPosition();
+    this.x = pos.x;
+    this.y = pos.y;
+}
+
+Character.prototype.addToWorld = function(world) {
+    this.body = world.CreateBody(this.bodyDef);
+    this.fixture = this.body.CreateFixture(this.fixtureDef);
+    this.body.SetPosition(new Box2D.Common.Math.b2Vec2(this.x,this.y));
+
+    var massData = new Box2D.Collision.Shapes.b2MassData();
+    massData.center = this.body.GetLocalCenter();
+    massData.mass = this.mass;
+    this.body.SetMassData(massData);
+}
+
+Character.prototype.moveLeft = function() {
+    var force = new Box2D.Common.Math.b2Vec2(-100000,0);
+    if(this.body.GetLinearVelocity().x > -500) {
+        this.body.ApplyForce(force, this.body.GetLocalCenter());
+    }
+}
+
+Character.prototype.moveRight = function() {
+    var force = new Box2D.Common.Math.b2Vec2(100000,0);
+    if(this.body.GetLinearVelocity().x < 500) {
+        this.body.ApplyForce(force, this.body.GetLocalCenter());
+    }
+}
+
+Character.prototype.jump = function() {
+    var force = new Box2D.Common.Math.b2Vec2(0,-1000000);
+    this.body.ApplyForce(force, this.body.GetLocalCenter());
 }
