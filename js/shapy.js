@@ -25,9 +25,12 @@ function initGame() {
     var b1 = new Floor(0,580,1024,100);
     var p = new Character(20,20,25,25);
 
+    var block1 = new Block(100,100,30,30);
+
     lvl1.addElement(b1);
     lvl1.character = p;
     p.addToWorld(lvl1.world);
+    lvl1.addElement(block1);
     shapy.levels[1] = lvl1;
 
     shapy.level = 1;
@@ -69,10 +72,19 @@ var Level = function() {
     this.elements = [];
     this.gravity = new Box2D.Common.Math.b2Vec2(0,100);
     this.world = new Box2D.Dynamics.b2World(this.gravity, false);
+
+    var debugDraw = new Box2D.Dynamics.b2DebugDraw();
+    debugDraw.SetSprite(shapy.ctx);
+    debugDraw.SetDrawScale(1.0);
+    debugDraw.SetFillAlpha(0.5);
+    debugDraw.SetLineThickness(1.0);
+    debugDraw.SetFlags(Box2D.Dynamics.b2DebugDraw.e_shapeBit | Box2D.Dynamics.b2DebugDraw.e_jointBit);
+    this.world.SetDebugDraw(debugDraw);
 };
 
 Level.prototype.draw = function(ctx) {
     ctx.clearRect(0,0,shapy.width,shapy.height);
+    this.world.DrawDebugData();
     for(var elem of this.elements) {
         elem.draw(ctx);
     }
@@ -107,7 +119,25 @@ Level.prototype.handleKeyPress = function(event) {
         case 38:
             this.character.jump();
             break;
+        case 80:
+            this.checkPickup();
+            break;
     }
+}
+
+Level.prototype.checkPickup = function() {
+    var tolerance = 10;
+    var shape = new Box2D.Collision.Shapes.b2PolygonShape.AsBox(this.character.width+tolerance, 
+                                                                this.character.height+tolerance);
+    var pos = this.character.body.GetPosition();
+    var transform = new Box2D.Common.Math.b2Transform();
+    transform.pos = pos;
+    this.world.QueryShape(function(fixture) {
+        console.log("got a shape!");
+        var body = fixture.GetBody();
+        this.character.pickUp(body);
+        return false;
+    }, shape, transform);
 }
 
 /* 
@@ -123,7 +153,7 @@ var Floor = function(x, y, width, height) {
     this.shape = new Box2D.Collision.Shapes.b2PolygonShape.AsBox(width, height);
     this.fixtureDef = new Box2D.Dynamics.b2FixtureDef();
     this.fixtureDef.shape = this.shape;
-    this.fixtureDef.friction = 0.1;
+    this.fixtureDef.friction = 0.4;
     this.fixtureDef.density = 1;
     this.fixtureDef.restitution = 0;
 
@@ -158,7 +188,7 @@ var Block = function(x, y, width, height) {
     this.shape = new Box2D.Collision.Shapes.b2PolygonShape.AsBox(width, height);
     this.fixtureDef = new Box2D.Dynamics.b2FixtureDef();
     this.fixtureDef.shape = this.shape;
-    this.fixtureDef.friction = 0.1;
+    this.fixtureDef.friction = 0.3;
     this.fixtureDef.density = 1;
     this.fixtureDef.restitution = 0;
 
@@ -166,9 +196,20 @@ var Block = function(x, y, width, height) {
     this.bodyDef.type = Box2D.Dynamics.b2Body.b2_dynamicBody;
 }
 
+Block.prototype.addToWorld = function(world) {
+    this.body = world.CreateBody(this.bodyDef);
+    this.fixture = this.body.CreateFixture(this.fixtureDef);
+    this.body.SetPosition(new Box2D.Common.Math.b2Vec2(this.x,this.y));
+
+    var massData = new Box2D.Collision.Shapes.b2MassData();
+    massData.center = this.body.GetLocalCenter();
+    massData.mass = this.mass;
+    this.body.SetMassData(massData);
+}
+
 Block.prototype.draw = function(ctx) {
-    ctx.fillStyle = 'white';
-    ctx.fillRect(this.x, this.y-this.height, this.width, this.height);
+    ctx.fillStyle = 'gray';
+    ctx.fillRect(this.x-this.width, this.y-this.height, this.width*2, this.height*2);
 }
 
 Block.prototype.update = function() {
@@ -197,17 +238,24 @@ var Character = function(x, y, width, height) {
 
     this.bodyDef = new Box2D.Dynamics.b2BodyDef();
     this.bodyDef.type = Box2D.Dynamics.b2Body.b2_dynamicBody;
+
+    this.carriedObj = null;
 }
 
 Character.prototype.draw = function(ctx) {
     ctx.fillStyle = 'white';
-    ctx.fillRect(this.x, this.y, this.width, this.height);
+    ctx.fillRect(this.x-this.width, this.y-this.height, this.width*2, this.height*2);
 }
 
 Character.prototype.update = function() {
     var pos = this.body.GetPosition();
     this.x = pos.x;
     this.y = pos.y;
+
+    if(this.carriedObj) {
+        var newPos = new Box2D.Common.Math.b2Vec2(this.x,this.y-this.height-10);
+        this.carriedObj.SetPosition(newPos);
+    }
 }
 
 Character.prototype.addToWorld = function(world) {
@@ -238,4 +286,16 @@ Character.prototype.moveRight = function() {
 Character.prototype.jump = function() {
     var force = new Box2D.Common.Math.b2Vec2(0,-1000000);
     this.body.ApplyForce(force, this.body.GetLocalCenter());
+}
+
+Character.prototype.pickUp = function(body) {
+    console.log("Pick up!");
+    body.SetAwake(false);
+    this.carriedObj = body;
+}
+
+Character.prototype.putDown = function() {
+    body.SetAwake(true);
+    this.carriedObj.ApplyForce(new Box2D.Common.Math.b2Vec2(1000,0));
+    this.carriedObj = null;
 }
