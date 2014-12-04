@@ -22,15 +22,26 @@ function initGame() {
     shapy.level = 0;
 
     var lvl1 = new Level();
-    var b1 = new Floor(0,580,1024,100);
-    var p = new Character(20,20,25,25);
+    var b1 = new Floor(0,580,306,50);
+    var b2 = new Floor(356,640,50,50);
+    var b3 = new Floor(425,580,50,50);
+    var b4 = new Floor(500,640,50,50);
+    var b5 = new Floor(600,580,50,50);
+    var p = new Character(20,500,25,25);
 
-    var block1 = new Block(100,100,30,30);
+
+    var block1 = new Block(100,400,30,30);
+    var block2 = new Block(100,500,30,30);
 
     lvl1.addElement(b1);
+    lvl1.addElement(b2);
+    lvl1.addElement(b3);
+    lvl1.addElement(b4);
+    lvl1.addElement(b5);
     lvl1.character = p;
     p.addToWorld(lvl1.world);
     lvl1.addElement(block1);
+    lvl1.addElement(block2);
     shapy.levels[1] = lvl1;
 
     shapy.level = 1;
@@ -163,7 +174,7 @@ var Floor = function(x, y, width, height) {
 
 Floor.prototype.draw = function(ctx) {
     ctx.fillStyle = 'white';
-    ctx.fillRect(this.x, this.y-this.height, this.width, this.height);
+    ctx.fillRect(this.x-this.width, this.y-this.height, this.width*2, this.height*2);
 }
 
 Floor.prototype.update = function() {
